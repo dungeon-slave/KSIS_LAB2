@@ -1,12 +1,12 @@
-﻿namespace Trcrt
+namespace TRC
 {
     class Program
     {
         static void Main()
         {
-            Tracert tc1 = new Tracert();
+            Traceroute tc1 = new Traceroute();
 
-            tc1.Test();
+            tc1.Tracing();
             System.Console.ReadLine();
         }
     }
