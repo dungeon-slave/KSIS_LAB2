@@ -1,67 +1,81 @@
 using System.Net;
 using System.Net.Sockets;
 
-namespace Trcrt
+namespace TRC
 {
-    class Tracert
+    class Traceroute
     {
-        Socket socketUDP = new(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        Socket socketUDP  = new(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         Socket socketICMP = new(AddressFamily.InterNetwork, SocketType.Raw, ProtocolType.Icmp);
-        EndPoint? RemotePoint;
-        IPHostEntry? GetDestinationIp()
+        IPEndPoint? RemotePoint;
+        int TTL = 1;
+
+        void Sending()
         {
-            string? DestinationName = Console.ReadLine();
-            if (DestinationName != null)
+            byte[] buffer = new byte[512];//буфер для получаемых данных
+            Span<byte> span;
+            EndPoint endPoint = RemotePoint;
+            int port = 33433, routernumb = 1;
+            
+            DateTime Time;
+            TimeSpan TS;
+
+            do
             {
-                return Dns.GetHostEntry(DestinationName);
-            }
-            return null;
-        }
-        byte[] SendPackets()
-        {
-            byte[] buffer = new byte[256];//буфер для получаемых данных
-            if(RemotePoint != null)
-            {
-                //socketICMP.BeginReceive(buffer, 0 , 0, 0, new AsyncCallback(CHNG), null);
-                // for(int i = 0; i < 3; i++)
-                // { 
-                socketUDP.SendTo(new byte[1], RemotePoint);
-                socketICMP.Receive(buffer);
-                Span<byte> span = buffer.AsSpan()[50..52];
-                span.Reverse();
-                Console.WriteLine(BitConverter.ToUInt16(span));
-                // }
-                return buffer;
-            }
-            return buffer;
+                Console.Write(String.Format("  {0,2}   ", routernumb++));
+                for (int i = 0; i < 3; i++)
+                {   
+                    socketUDP.SendTo(new byte[1], new IPEndPoint(RemotePoint.Address, ++port));
+                    Time = DateTime.Now;
+                    try
+                    {
+                        do
+                        {
+                            socketICMP.ReceiveFrom(buffer, ref endPoint);
+                            span = buffer.AsSpan()[50..52];
+                            span.Reverse();
+                        } while (BitConverter.ToUInt16(span) != port);
+                        TS = DateTime.Now - Time;
+                        Console.Write(String.Format("{0,3} ms ", TS.Milliseconds));
+                    }
+                    catch (Exception)
+                    {
+                        Console.Write(String.Format("{0,3}    ", "*"));
+                    }
+                }
+                Console.WriteLine($" {((IPEndPoint)endPoint).Address.ToString()}");
+
+                socketUDP.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.IpTimeToLive, ++TTL);
+            } while (TTL <= 30 && RemotePoint.Address.ToString() != ((IPEndPoint)endPoint).Address.ToString());
+
+            Console.WriteLine("\nТрассировка завершена.");
         }
 
-        // void CHNG(IAsyncResult ar)
-        // {
-        //     socketICMP.EndReceive(ar);
-        // }
-        public void Test()
+        void Preparing()
         {
-            IPHostEntry? IPHE = GetDestinationIp();
             try
             {
-                if (IPHE != null)
-                {
-                    RemotePoint = new IPEndPoint(IPHE.AddressList[0], 33434); //Для трассировки по udp принято устанавливать 33434 порт
-                    Console.WriteLine($"Трассировка маршрута к {IPHE.HostName} [{IPHE.AddressList[0]}]");
- 
-                    socketUDP.Connect(RemotePoint);//Делается для выбора корректного сетевого адаптера 
-                    socketICMP.Bind(socketUDP.LocalEndPoint);
-                    Console.WriteLine(socketUDP.LocalEndPoint);
-                    socketICMP.IOControl(IOControlCode.ReceiveAll, new byte[] { 1, 0, 0, 0 }, new byte[] { 1, 0, 0, 0 });
-                    
-                    SendPackets();
-                }
+                IPHostEntry? IPHE = Dns.GetHostEntry(Console.ReadLine());
+                RemotePoint = new IPEndPoint(IPHE.AddressList[0], 33434); //Для трассировки по udp принято устанавливать 33434 порт
+                
+                socketUDP.Connect(RemotePoint);//Делается для выбора корректного сетевого адаптера 
+                socketUDP.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.IpTimeToLive, TTL);
+                socketICMP.Bind(socketUDP.LocalEndPoint);
+                socketICMP.IOControl(IOControlCode.ReceiveAll, new byte[] { 1, 0, 0, 0 }, new byte[] { 1, 0, 0, 0 });
+                socketICMP.ReceiveTimeout = 4000;
+                
+                Console.WriteLine($"\nТрассировка маршрута к {IPHE.HostName} [{IPHE.AddressList[0]}]\nс максималным количество прыжков 30:\n");
             }
             catch (System.Exception)
             {
-                Console.WriteLine("Socket error!");
+                Console.WriteLine("SOCKETS PREPARING ERROR!\n");
             }
+        }
+
+        public void Tracing()
+        {
+            Preparing();
+            Sending();
         }
     }
 }
