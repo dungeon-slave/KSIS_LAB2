@@ -4,9 +4,8 @@ namespace TRC
     {
         static void Main()
         {
-            Traceroute tc1 = new Traceroute();
-
-            tc1.Tracing();
+            Traceroute TC  = new();
+            TC.TraceRoute();
             System.Console.ReadLine();
         }
     }
