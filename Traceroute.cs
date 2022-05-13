@@ -43,18 +43,21 @@ namespace TRC
             EndPoint   endPoint = remotePoint;
             int        routernumb = 1;
             byte[]     buffer = new byte[128];//буфер для получаемых данных
+            bool       success;
 
             do
             {
                 socketUDP.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.IpTimeToLive, ttl++);
                 Console.Write(String.Format("  {0,2}   ", routernumb++));
-
+                success = false;
                 for (int i = 0; i < 3; i++, port++)
                 {   
                     socketUDP.SendTo(new byte[1], new IPEndPoint(remotePoint.Address, port));
                     time = DateTime.Now;
+ 
                     try
                     {
+
                         do
                         {
                             socketICMP.ReceiveFrom(buffer, ref endPoint);
@@ -62,6 +65,7 @@ namespace TRC
                             span.Reverse();
                         } while (BitConverter.ToUInt16(span) != port);
 
+                        success = true;
                         timeSpan = DateTime.Now - time;
                         Console.Write(String.Format("{0,3} ms ", timeSpan.Milliseconds));
                     }
@@ -71,7 +75,14 @@ namespace TRC
                     }
                 }
 
-                Console.WriteLine($" {((IPEndPoint)endPoint).Address.ToString()}");
+                if(success)
+                {
+                    Console.WriteLine($" {((IPEndPoint)endPoint).Address.ToString()}");
+                }
+                else
+                {
+                    Console.WriteLine(" Превышен интервал ожидания для запроса.");
+                }
             } while (ttl <= 30 && !remotePoint.Address.Equals(((IPEndPoint)endPoint).Address));
 
             Console.WriteLine("\nТрассировка завершена.");
